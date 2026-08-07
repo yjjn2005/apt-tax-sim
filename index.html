@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>양도세·맞교환 시뮬레이터 | 파인트리 패밀리오피스</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  --paper:#F3F5F7; --card:#FFFFFF; --ink:#16212C; --ink-soft:#5A6B7C;
+  --ledger:#0F4C81; --ledger-deep:#0A3358;
+  --tax-red:#B3392E; --save-green:#1E7A54; --gold:#E8B84B;
+  --line:#D8DFE6; --line-strong:#B6C2CD;
+  --mono-feat:"tnum" 1, "lnum" 1;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  background:var(--paper);color:var(--ink);line-height:1.5;padding-bottom:70px}
+.wrap{max-width:860px;margin:0 auto;padding:0 16px}
+
+header{background:var(--ledger-deep);color:#fff;padding:22px 0 18px;border-bottom:4px double var(--gold)}
+.doc-no{font-size:11px;letter-spacing:.18em;color:#9FB8CE;font-weight:600}
+h1{font-size:20px;font-weight:800;letter-spacing:-.01em;margin-top:3px}
+.doc-sub{font-size:12px;color:#B9CBDC;margin-top:2px}
+.doc-sub b{color:var(--gold);font-weight:700}
+
+/* 탭 */
+.tabs{display:flex;gap:0;margin-top:18px;border-bottom:2px solid var(--ledger)}
+.tab-btn{flex:1;padding:12px 8px;font-size:14px;font-weight:700;color:var(--ink-soft);
+  background:transparent;border:none;cursor:pointer;border-bottom:3px solid transparent;
+  font-family:inherit;letter-spacing:-.01em}
+.tab-btn.on{color:var(--ledger);border-bottom-color:var(--ledger);background:#EAF1F7;border-radius:4px 4px 0 0}
+.tab-btn:focus-visible{outline:2px solid var(--ledger);outline-offset:-2px}
+.panel{display:none}
+.panel.on{display:block}
+
+section{margin-top:20px}
+.sec-label{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.sec-label .tag{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--ledger);
+  border:1.5px solid var(--ledger);padding:2px 8px;border-radius:2px}
+.sec-label h2{font-size:15px;font-weight:700}
+.sec-label small{font-size:11.5px;color:var(--ink-soft);font-weight:500}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 16px 14px}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px 14px}
+@media(max-width:640px){.grid{grid-template-columns:1fr 1fr;gap:10px}}
+.field label{display:block;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:4px}
+.field .unit-in{position:relative}
+.field input[type=number]{width:100%;padding:9px 32px 9px 10px;font-size:16px;font-weight:700;
+  font-feature-settings:var(--mono-feat);border:1.5px solid var(--line-strong);border-radius:4px;
+  background:#FBFCFD;color:var(--ink)}
+.field input[type=number]:focus{outline:none;border-color:var(--ledger);background:#fff}
+.field .u{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;
+  color:var(--ink-soft);font-weight:600;pointer-events:none}
+.field select{width:100%;padding:9px 10px;font-size:13.5px;font-weight:600;
+  border:1.5px solid var(--line-strong);border-radius:4px;background:#FBFCFD;color:var(--ink)}
+.field select:focus{outline:none;border-color:var(--ledger)}
+.check{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink);
+  padding-top:20px}
+.check input{width:16px;height:16px;accent-color:var(--ledger)}
+.hint{font-size:11px;color:var(--ink-soft);margin-top:3px}
+
+/* 매도시점 버튼 */
+.yr-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+@media(max-width:520px){.yr-btns{grid-template-columns:repeat(2,1fr)}}
+.yr-btn{padding:12px 6px 10px;border:1.5px solid var(--line-strong);border-radius:6px;background:var(--card);
+  cursor:pointer;text-align:center;font-family:inherit;transition:border-color .15s, background .15s}
+.yr-btn .y{display:block;font-size:14px;font-weight:800;color:var(--ink)}
+.yr-btn .r{display:block;font-size:10px;color:var(--ink-soft);font-weight:600;margin-top:2px;letter-spacing:-.01em}
+.yr-btn .amt{display:block;font-size:15px;font-weight:800;color:var(--tax-red);margin-top:6px;
+  font-feature-settings:var(--mono-feat)}
+.yr-btn.on{border-color:var(--ledger);background:#EAF1F7;box-shadow:inset 0 0 0 1px var(--ledger)}
+.yr-btn:focus-visible{outline:2px solid var(--ledger);outline-offset:2px}
+
+/* 연도 비교 막대 */
+.yr-chart{margin:16px 0 6px}
+.ych-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.ych-row .lb{width:64px;font-size:12px;font-weight:700;text-align:right;flex-shrink:0}
+.ych-row .tr{flex:1;height:22px;background:#EDF1F4;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.ych-row .fl{height:100%;background:var(--tax-red);transition:width .4s cubic-bezier(.4,0,.2,1)}
+.ych-row.sel .fl{background:var(--ledger)}
+.ych-row .vv{width:74px;font-size:12.5px;font-weight:800;font-feature-settings:var(--mono-feat);flex-shrink:0}
+
+/* 원장 테이블 */
+.ledger-tbl{width:100%;border-collapse:collapse}
+.ledger-tbl td{padding:7px 14px;font-size:12.5px;border-bottom:1px solid #EEF2F5;vertical-align:baseline}
+.ledger-tbl td:last-child{text-align:right;font-weight:700;font-feature-settings:var(--mono-feat);white-space:nowrap}
+.ledger-tbl tr.sub td{color:var(--ink-soft);font-size:12px;font-weight:500}
+.ledger-tbl tr.sub td:last-child{font-weight:600}
+.ledger-tbl tr.sum td{border-top:1.5px solid var(--ink);border-bottom:none;padding-top:9px;padding-bottom:11px;
+  font-weight:800;font-size:13.5px}
+.ledger-tbl tr.sum td:last-child{font-size:16px}
+.red{color:var(--tax-red)}
+.green{color:var(--save-green)}
+
+/* 교환 실익 */
+.verdict{margin-top:6px;background:var(--card);border:1.5px solid var(--ledger);border-radius:6px;overflow:hidden}
+.verdict-top{padding:16px;text-align:center;border-bottom:1px dashed var(--line-strong)}
+.verdict-top .k{font-size:12px;color:var(--ink-soft);font-weight:600;letter-spacing:.04em}
+.verdict-top .v{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-top:2px;font-feature-settings:var(--mono-feat)}
+.verdict-top .v.pos{color:var(--save-green)}
+.verdict-top .v.neg{color:var(--tax-red)}
+.verdict-top .d{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+.bars{padding:16px}
+.bar-row{margin-bottom:16px}
+.bar-row:last-child{margin-bottom:2px}
+.bar-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.bar-head .name{font-size:13px;font-weight:700}
+.badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.08em;padding:1px 6px;
+  border-radius:2px;margin-right:6px;vertical-align:1px}
+.badge.b1{background:#E7EEF5;color:var(--ledger)}
+.badge.b2{background:#F6E9E7;color:var(--tax-red)}
+.bar-head .tot{font-size:15px;font-weight:800;font-feature-settings:var(--mono-feat)}
+.bar-track{height:26px;background:#EDF1F4;border-radius:3px;overflow:hidden;display:flex;border:1px solid var(--line)}
+.seg{height:100%;min-width:0;transition:width .45s cubic-bezier(.4,0,.2,1)}
+.s-tax{background:var(--tax-red)}.s-acq{background:#D97E36}.s-fee{background:#3E7CB1}
+.s-etc{background:#8FA6B8}.s-fut{background:#7A4E9E}
+.legend{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.legend .li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-soft);font-weight:600}
+.legend .sw{width:10px;height:10px;border-radius:2px}
+.scen-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+@media(max-width:680px){.scen-grid{grid-template-columns:1fr}}
+.scen{background:var(--card);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.scen.win{border-color:var(--save-green)}
+.scen-h{padding:11px 14px;background:#F7F9FB;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center}
+.scen-h .t{font-size:13.5px;font-weight:800}
+.scen-h .pick{font-size:10px;font-weight:800;letter-spacing:.08em;color:#fff;background:var(--save-green);
+  padding:2px 7px;border-radius:2px;display:none}
+.scen.win .pick{display:inline-block}
+.ref{margin-top:14px;background:#FBFCFD;border:1px dashed var(--line-strong);border-radius:6px;
+  padding:12px 14px;font-size:12.5px;color:var(--ink-soft)}
+.ref b{color:var(--ink);font-feature-settings:var(--mono-feat)}
+
+/* 손익분기 */
+.be-readout{font-size:13px;background:#F2F7F4;border:1px solid #CFE3D7;border-radius:4px;
+  padding:10px 12px;margin-bottom:12px;line-height:1.65}
+.be-readout b{color:var(--save-green);font-feature-settings:var(--mono-feat)}
+#beChart svg{width:100%;height:auto;display:block}
+.tk{font-size:10px;fill:var(--ink-soft)}
+.diffline{fill:none;stroke:var(--ledger);stroke-width:2.5}
+.zeroline{stroke:var(--ink);stroke-width:1;opacity:.45}
+.beline{stroke:var(--save-green);stroke-width:1;stroke-dasharray:4 3}
+.bedot{fill:var(--save-green)}
+.belab{font-size:10.5px;fill:var(--save-green);font-weight:700}
+.curdot{fill:var(--tax-red)}
+.curlab{font-size:10.5px;fill:var(--tax-red);font-weight:700}
+.zone{font-size:10px;fill:var(--ink-soft);font-weight:600}
+.cases{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+@media(max-width:680px){.cases{grid-template-columns:1fr}}
+.case{border-radius:4px;padding:12px 14px;font-size:12.5px}
+.case.good{background:#F2F7F4;border:1px solid #CFE3D7}
+.case.bad{background:#FAF2F1;border:1px solid #E7CFCB}
+.case b{display:block;margin-bottom:6px;font-size:12.5px}
+.case.good b{color:var(--save-green)}
+.case.bad b{color:var(--tax-red)}
+.case ul{padding-left:16px;color:var(--ink-soft);line-height:1.65}
+
+details{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:6px}
+summary{padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;list-style:none;
+  display:flex;justify-content:space-between;align-items:center}
+summary::after{content:"＋";font-weight:400;color:var(--ink-soft)}
+details[open] summary::after{content:"－"}
+.detail-body{padding:0 16px 14px;font-size:12px;color:var(--ink-soft);line-height:1.7}
+.detail-body ul{padding-left:16px;margin:6px 0}
+.detail-body b{color:var(--ink)}
+footer{margin-top:24px;font-size:11px;color:var(--ink-soft);line-height:1.6}
+@media (prefers-reduced-motion: reduce){.seg,.ych-row .fl{transition:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="doc-no">PINETREE FAMILY OFFICE · 세부담 비교 계산서</div>
+    <h1>아파트 양도세 · 맞교환 시뮬레이터</h1>
+    <div class="doc-sub">2026 세제개편안 반영 — 2028년 <b>거주6%·보유2% / 한도 20억</b> → 2029년 <b>거주 8% / 한도 10억</b></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <div class="sec-label">
+    <span class="tag">입력</span>
+    <h2>현재 조건</h2>
+    <small>금액 단위: 억원 · 1세대 1주택 가정</small>
+  </div>
+  <div class="card">
+    <div class="grid">
+      <div class="field">
+        <label>취득가액</label>
+        <div class="unit-in"><input type="number" id="acq" value="17" step="0.5" min="0"><span class="u">억</span></div>
+      </div>
+      <div class="field">
+        <label>매도 희망가 (현재 시가)</label>
+        <div class="unit-in"><input type="number" id="cur" value="65" step="0.5" min="0"><span class="u">억</span></div>
+      </div>
+      <div class="field">
+        <label>필요경비</label>
+        <div class="unit-in"><input type="number" id="exp" value="0.5" step="0.1" min="0"><span class="u">억</span></div>
+      </div>
+      <div class="field">
+        <label>보유기간 (현재)</label>
+        <div class="unit-in"><input type="number" id="hold" value="10" step="1" min="0"><span class="u">년</span></div>
+      </div>
+      <div class="field">
+        <label>거주기간 (현재)</label>
+        <div class="unit-in"><input type="number" id="res" value="10" step="1" min="0"><span class="u">년</span></div>
+      </div>
+      <div class="field">
+        <label>연간 가격 상승률 가정</label>
+        <div class="unit-in"><input type="number" id="grow" value="0" step="0.5"><span class="u">%</span></div>
+        <div class="hint">미래 매도시점 가격에 반영</div>
+      </div>
+      <div class="field">
+        <label>전용면적</label>
+        <select id="area">
+          <option value="over" selected>85㎡ 초과 (취득세 3.5%)</option>
+          <option value="under">85㎡ 이하 (취득세 3.3%)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>중개보수율 (VAT 별도)</label>
+        <div class="unit-in"><input type="number" id="fee" value="0.7" step="0.1" min="0" max="0.9"><span class="u">%</span></div>
+      </div>
+      <div class="field">
+        <label class="check" style="padding-top:0"><input type="checkbox" id="stay" checked> 매도시점까지 계속 거주</label>
+        <div class="hint">체크 해제 시 거주기간 고정</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="tabs" role="tablist">
+  <button class="tab-btn on" id="tabBtn1" role="tab" aria-selected="true" onclick="showTab(1)">📅 매도시점별 양도세</button>
+  <button class="tab-btn" id="tabBtn2" role="tab" aria-selected="false" onclick="showTab(2)">🔄 교환 실익</button>
+</div>
+
+<!-- ══ 탭 1: 매도시점별 양도세 ══ -->
+<div class="panel on" id="panel1">
+  <section>
+    <div class="sec-label">
+      <span class="tag">대시보드</span>
+      <h2>매도시점을 선택하세요</h2>
+      <small>버튼을 누르면 아래에 상세 명세가 표시됩니다</small>
+    </div>
+    <div class="yr-btns" id="yrBtns"></div>
+    <div class="card">
+      <div class="yr-chart" id="yrChart"></div>
+      <table class="ledger-tbl" id="yrDetail"></table>
+    </div>
+  </section>
+</div>
+
+<!-- ══ 탭 2: 교환 실익 ══ -->
+<div class="panel" id="panel2">
+  <section>
+    <div class="sec-label">
+      <span class="tag">가정</span>
+      <h2>교환 시나리오 추가 입력</h2>
+    </div>
+    <div class="card">
+      <div class="grid">
+        <div class="field">
+          <label>최종 매도 예상 시가</label>
+          <div class="unit-in"><input type="number" id="fut" value="65" step="0.5" min="0"><span class="u">억</span></div>
+          <div class="hint">2029년 이후 최종 매도 가격</div>
+        </div>
+        <div class="field">
+          <label>교환 후 재매도까지 거주</label>
+          <div class="unit-in"><input type="number" id="res2" value="3" step="1" min="0"><span class="u">년</span></div>
+          <div class="hint">2년 미만이면 비과세 상실</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="verdict">
+    <div class="verdict-top">
+      <div class="k" id="vk">맞교환 시 절감액</div>
+      <div class="v pos" id="vv">—</div>
+      <div class="d" id="vd"></div>
+    </div>
+    <div class="bars">
+      <div class="bar-row">
+        <div class="bar-head">
+          <span class="name"><span class="badge b1">B안</span>지금 맞교환 → 미래 매도</span>
+          <span class="tot" id="totB">—</span>
+        </div>
+        <div class="bar-track" id="barB"></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-head">
+          <span class="name"><span class="badge b2">C안</span>계속 보유 → 2029년 이후 매도</span>
+          <span class="tot" id="totC">—</span>
+        </div>
+        <div class="bar-track" id="barC"></div>
+      </div>
+      <div class="legend">
+        <span class="li"><span class="sw s-tax"></span>양도세(지금)</span>
+        <span class="li"><span class="sw s-fut"></span>양도세(미래)</span>
+        <span class="li"><span class="sw s-acq"></span>취득세</span>
+        <span class="li"><span class="sw s-fee"></span>중개보수</span>
+        <span class="li"><span class="sw s-etc"></span>기타비용</span>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-label"><span class="tag">명세</span><h2>시나리오별 부담 내역</h2></div>
+    <div class="scen-grid">
+      <div class="scen" id="scenB">
+        <div class="scen-h"><span class="t">B안 · 지금 맞교환</span><span class="pick">유리</span></div>
+        <table class="ledger-tbl" id="tblB"></table>
+      </div>
+      <div class="scen" id="scenC">
+        <div class="scen-h"><span class="t">C안 · 계속 보유</span><span class="pick">유리</span></div>
+        <table class="ledger-tbl" id="tblC"></table>
+      </div>
+    </div>
+    <div class="ref" id="refA"></div>
+  </section>
+
+  <section>
+    <div class="sec-label">
+      <span class="tag">분석</span>
+      <h2>맞교환 손익분기 분석</h2>
+      <small>교환가액(시가)별 유·불리 구간</small>
+    </div>
+    <div class="card">
+      <div class="be-readout" id="beRead">—</div>
+      <div id="beChart"></div>
+      <div class="cases">
+        <div class="case good">
+          <b>맞교환이 유리한 케이스</b>
+          <ul>
+            <li>과세대상 차익이 커서 2029년 공제한도 10억원에 걸리는 경우 — 대략 과세대상 차익 12.5억 초과(80%×12.5억=10억)부터 한도 효과가 시작됨</li>
+            <li>교환 후에도 2년 이상 보유·거주해 12억 비과세를 다시 확보하는 경우</li>
+            <li>향후 가격 상승이 예상되는 경우 — 취득가 리셋으로 상승분만 과세되고 거주공제도 새로 쌓임</li>
+            <li>같은 단지·생활권에 계속 거주할 계획인 경우 (일반매도와 달리 이주 불필요)</li>
+          </ul>
+        </div>
+        <div class="case bad">
+          <b>불리하거나 실익 없는 케이스</b>
+          <ul>
+            <li>차익이 작아 한도에 걸리지 않는 경우 — 취득세·중개보수 등 시가의 약 4%만 순손실</li>
+            <li>교환 후 2년 미만 보유·거주 후 재매도 — 12억 비과세 상실로 세금 급증</li>
+            <li>세대 기준 2주택 이상 — 취득세 8~12% 중과로 실익 소멸</li>
+            <li>개편안이 국회에서 완화·무산되는 경우 — 선납한 세금·비용만 확정</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<details>
+  <summary>계산 근거·가정 보기</summary>
+  <div class="detail-body">
+    <ul>
+      <li><b>2026·2027년 매도(현행)</b>: 12억 초과분 안분과세, 장특공제 = 보유 연 4% + 거주 연 4% (각 10년 한도, 최대 80%, 한도 없음).</li>
+      <li><b>2028년 매도(경과규정)</b>: 거주 연 6% + 보유 연 2% (최대 80%), <b>공제액 한도 20억원</b>.</li>
+      <li><b>2029년 이후 매도</b>: 보유공제 폐지, 거주 연 8% (최대 80%), <b>공제액 한도 10억원</b>.</li>
+      <li>기본공제 250만원, 기본세율 6~45% 누진, 지방소득세 10% 가산. 12억 비과세는 전 시점 유지 가정.</li>
+      <li>"계속 거주" 체크 시 매도시점까지 보유·거주기간이 연 단위로 늘어난 것으로 계산.</li>
+      <li><b>교환 = 양도</b>: 교환 시점에 현행 규정으로 양도세 납부, 취득가액은 교환가액(시가)으로 리셋, 새 주택 보유·거주기간은 0부터 시작.</li>
+      <li><b>취득세</b>: 1주택·9억 초과 3% + 지방교육세 0.3% + (85㎡ 초과 시 농특세 0.2%). 동시이행으로 중과 배제 가정. 기타비용(법무·채권·인지) 3,000만원 일괄.</li>
+      <li>2026.8.3 발표 세제개편안 기준 개산치로 국회 통과 과정에서 변경될 수 있으며, 실행 전 세무 전문가 검증이 필요합니다.</li>
+    </ul>
+  </div>
+</details>
+
+<footer>
+  본 계산서는 개산 시뮬레이션으로 법적·세무적 효력이 없습니다. 취득 당시 조정지역 여부, 토지거래허가·재건축 조합원 지위 제한 등 개별 사정은 반영되지 않았습니다.
+</footer>
+
+</div>
+
+<script>
+// ── 유틸 ──
+const won = v => {
+  const n = Math.round(v*100)/100;
+  if (Math.abs(n) >= 1) return n.toLocaleString('ko-KR',{maximumFractionDigits:2}) + '억';
+  return Math.round(n*10000).toLocaleString('ko-KR') + '만원';
+};
+const $ = id => document.getElementById(id);
+
+// ── 기본세율 (억원 단위) ──
+function progTax(base){
+  if (base <= 0) return 0;
+  const br = [
+    [0.14, .06, 0],[0.50, .15, 0.0126],[0.88, .24, 0.0576],[1.50, .35, 0.1544],
+    [3.00, .38, 0.1994],[5.00, .40, 0.2594],[10.0, .42, 0.3594],[Infinity, .45, 0.6594]
+  ];
+  for (const [lim, r, ded] of br){ if (base <= lim) return base*r - ded; }
+}
+
+// ── 양도세 (지방세 포함) — regime: 'now' | 'y28' | 'y29' ──
+function capGainTax(acq, sale, exp, holdY, resY, regime, exemptOK){
+  const gain = sale - acq - exp;
+  if (gain <= 0) return {tax:0, gain:Math.max(gain,0), taxable:0, ded:0, rate:0, base:0, capped:false};
+  let taxable = gain;
+  if (exemptOK && sale > 12) taxable = gain * (sale - 12) / sale;
+  else if (exemptOK && sale <= 12) taxable = 0;
+  let rate = 0, cap = Infinity;
+  if (regime === 'now'){
+    if (resY >= 2) rate = (Math.min(holdY,10)*4 + Math.min(resY,10)*4)/100;
+    else { rate = Math.min(Math.max(holdY-2,0)*2, 30)/100; if (holdY < 3) rate = 0; }
+  } else if (regime === 'y28'){
+    rate = (Math.min(resY,10)*6 + Math.min(holdY,10)*2)/100;
+    if (rate > 0.8) rate = 0.8;
+    cap = 20;
+  } else {
+    rate = Math.min(resY,10)*8/100;
+    cap = 10;
+  }
+  const dedRaw = taxable*rate;
+  const ded = Math.min(dedRaw, cap);
+  const base = Math.max(0, taxable - ded - 0.025);
+  return {tax: progTax(base)*1.1, gain, taxable, ded, rate, base, capped: dedRaw > cap};
+}
+
+// ── 탭 전환 ──
+function showTab(n){
+  [1,2].forEach(i=>{
+    $('panel'+i).classList.toggle('on', i===n);
+    $('tabBtn'+i).classList.toggle('on', i===n);
+    $('tabBtn'+i).setAttribute('aria-selected', i===n ? 'true':'false');
+  });
+}
+
+// ── 매도시점 정의 ──
+const YEARS = [
+  {y:'2026', extra:0, regime:'now', rule:'현행 · 보유4%+거주4%'},
+  {y:'2027', extra:1, regime:'now', rule:'개편 유예 · 현행 동일'},
+  {y:'2028', extra:2, regime:'y28', rule:'거주6%+보유2% · 한도20억'},
+  {y:'2029~', extra:3, regime:'y29', rule:'거주8% · 한도10억'}
+];
+let selYear = 3; // 기본: 2029~
+
+function readInputs(){
+  return {
+    acq:+$('acq').value||0, cur:+$('cur').value||0, exp:+$('exp').value||0,
+    hold:+$('hold').value||0, res:+$('res').value||0,
+    grow:(+$('grow').value||0)/100, stay:$('stay').checked,
+    feeR:(+$('fee').value||0)/100,
+    acqRate: $('area').value==='over' ? 0.035 : 0.033
+  };
+}
+const ETC = 0.03;
+
+// ── 탭1: 연도별 계산 ──
+function yearResults(p){
+  return YEARS.map(Y=>{
+    const price = p.cur * Math.pow(1+p.grow, Y.extra);
+    const h = p.hold + Y.extra;
+    const r = p.res + (p.stay ? Y.extra : 0);
+    const t = capGainTax(p.acq, price, p.exp, h, r, Y.regime, r>=2);
+    return {...Y, price, h, r, t};
+  });
+}
+
+function renderYears(p){
+  const rs = yearResults(p);
+  // 버튼
+  $('yrBtns').innerHTML = rs.map((R,i)=>
+    `<button class="yr-btn${i===selYear?' on':''}" onclick="pickYear(${i})">`+
+    `<span class="y">${R.y}년 매도</span><span class="r">${R.rule}</span>`+
+    `<span class="amt">${won(R.t.tax)}</span></button>`
+  ).join('');
+  // 비교 막대
+  const maxT = Math.max(...rs.map(R=>R.t.tax), 0.001);
+  $('yrChart').innerHTML = rs.map((R,i)=>
+    `<div class="ych-row${i===selYear?' sel':''}">`+
+    `<span class="lb">${R.y}</span>`+
+    `<span class="tr"><span class="fl" style="width:${R.t.tax/maxT*100}%"></span></span>`+
+    `<span class="vv">${won(R.t.tax)}</span></div>`
+  ).join('');
+  // 상세 명세
+  const R = rs[selYear], t = R.t;
+  const feeAmt = R.price * p.feeR * 1.1;
+  const net = R.price - t.tax - feeAmt;
+  $('yrDetail').innerHTML =
+    row(`매도가액 (상승률 반영)`, R.price) +
+    row(`양도차익`, t.gain) +
+    row(`과세대상 차익 (12억 비과세 안분)`, t.taxable, 'sub') +
+    row(`장특공제 ${Math.round(t.rate*100)}%${t.capped?' → <span class="red">한도 적용</span>':''}`, t.ded, 'sub') +
+    row(`과세표준`, t.base, 'sub') +
+    row(`양도세 (지방세 포함)`, t.tax, 'red') +
+    row(`중개보수 (VAT 포함)`, feeAmt) +
+    row(`세후 실수취액 <span class="green">(보유·거주 ${R.h}년/${R.r}년 기준)</span>`, net, 'sum');
+}
+function pickYear(i){ selYear = i; calc(); }
+
+function row(label, val, cls=''){
+  return `<tr class="${cls||''}"><td>${label}</td><td>${typeof val==='number'?won(val):val}</td></tr>`;
+}
+
+// ── 탭2: 교환 실익 ──
+function renderSwap(p){
+  const fut = +$('fut').value||0, res2 = +$('res2').value||0;
+  const fee = v => v * p.feeR * 1.1;
+
+  const bNow = capGainTax(p.acq, p.cur, p.exp, p.hold, p.res, 'now', p.res>=2);
+  const bAcqTax = p.cur * p.acqRate;
+  const bFeeNow = fee(p.cur);
+  const bFut = capGainTax(p.cur, fut, bAcqTax+ETC, res2, res2, 'y29', res2>=2);
+  const bFeeFut = fee(fut);
+  const totB = bNow.tax + bAcqTax + bFeeNow + ETC + bFut.tax + bFeeFut;
+
+  const cTax = capGainTax(p.acq, fut, p.exp, p.hold+res2, p.res+res2, 'y29', (p.res+res2)>=2);
+  const cFee = fee(fut);
+  const totC = cTax.tax + cFee;
+
+  const diff = totC - totB;
+  const vv = $('vv');
+  vv.textContent = (diff>=0?'▼ ':'▲ ') + won(Math.abs(diff));
+  vv.className = 'v ' + (diff>=0 ? 'pos' : 'neg');
+  $('vk').textContent = diff>=0 ? '맞교환(B) 선택 시 절감액' : '계속 보유(C)가 유리 — 맞교환 시 추가부담';
+  $('vd').textContent = `총부담 비교: B안 ${won(totB)} vs C안 ${won(totC)}`;
+  $('totB').textContent = won(totB);
+  $('totC').textContent = won(totC);
+  $('scenB').classList.toggle('win', diff>=0);
+  $('scenC').classList.toggle('win', diff<0);
+
+  const maxT = Math.max(totB, totC, 0.001);
+  const seg = (v, cls) => v>0.005 ? `<div class="seg ${cls}" style="width:${v/maxT*100}%"></div>` : '';
+  $('barB').innerHTML = seg(bNow.tax,'s-tax')+seg(bAcqTax,'s-acq')+seg(bFeeNow+bFeeFut,'s-fee')+seg(ETC,'s-etc')+seg(bFut.tax,'s-fut');
+  $('barC').innerHTML = seg(cTax.tax,'s-fut')+seg(cFee,'s-fee');
+
+  $('tblB').innerHTML =
+    row('양도세 · 교환 시점 (현행 규정)', bNow.tax, 'red') +
+    row(`└ 과세대상 ${won(bNow.taxable)} / 공제 ${won(bNow.ded)}`, '', 'sub') +
+    row(`취득세 (${(p.acqRate*100).toFixed(1)}%)`, bAcqTax) +
+    row('중개보수 (교환+재매도)', bFeeNow+bFeeFut) +
+    row('기타 (법무·채권·인지)', ETC) +
+    row('양도세 · 재매도 (2029 규정)', bFut.tax, 'red') +
+    row(`└ 취득가 ${won(p.cur)} 리셋 · 거주 ${res2}년`, '', 'sub') +
+    row('총부담', totB, 'sum');
+
+  $('tblC').innerHTML =
+    row('양도세 · 2029년 이후 매도', cTax.tax, 'red') +
+    row(`└ 과세대상 차익 ${won(cTax.taxable)}`, '', 'sub') +
+    row(`└ 공제 ${Math.round(cTax.rate*100)}% → 한도적용 ${won(cTax.ded)}`, '', 'sub') +
+    row('중개보수 (VAT 포함)', cFee) +
+    row('총부담', totC, 'sum');
+
+  $('refA').innerHTML =
+    `<b>참고 · A안(지금 제3자에게 일반매도)</b> — 양도세 <b>${won(bNow.tax)}</b> + 중개보수 <b>${won(bFeeNow)}</b> = 총 <b>${won(bNow.tax+bFeeNow)}</b>. `+
+    `세부담만 보면 가장 가볍지만 현금화 후 이주가 전제입니다. 맞교환은 "계속 거주"를 유지하며 차익을 조기 실현하는 선택지입니다.`;
+
+  sweep(p, (p.cur>0 && fut>0) ? fut/p.cur : 1, res2);
+}
+
+// ── 손익분기 ──
+function totalsFor(p, s, futS, res2){
+  const fee = v => v * p.feeR * 1.1;
+  const bNow = capGainTax(p.acq, s, p.exp, p.hold, p.res, 'now', p.res>=2);
+  const bAcqTax = s * p.acqRate;
+  const bFut = capGainTax(s, futS, bAcqTax+ETC, res2, res2, 'y29', res2>=2);
+  const totB = bNow.tax + bAcqTax + fee(s) + ETC + bFut.tax + fee(futS);
+  const cTax = capGainTax(p.acq, futS, p.exp, p.hold+res2, p.res+res2, 'y29', (p.res+res2)>=2);
+  return {diff: (cTax.tax + fee(futS)) - totB};
+}
+
+function sweep(p, ratio, res2){
+  const start = Math.max(p.acq + 0.5, 12.5);
+  const end = Math.max(p.cur*1.6, p.acq + 60, 80);
+  const N = 72, pts = [];
+  for(let i=0;i<=N;i++){
+    const s = start + (end-start)*i/N;
+    pts.push([s, totalsFor(p, s, s*ratio, res2).diff]);
+  }
+  let be = null;
+  for(let i=1;i<pts.length;i++){
+    const x0=pts[i-1][0], y0=pts[i-1][1], x1=pts[i][0], y1=pts[i][1];
+    if(y0<0 && y1>=0){ be = x0 + (0-y0)*(x1-x0)/(y1-y0); break; }
+  }
+  const read = $('beRead');
+  if(be!==null){
+    read.innerHTML = `현재 가정(취득가 ${won(p.acq)} · 거주 ${p.res}년 · 재매도까지 거주 ${res2}년 · 미래가격 배율 ×${ratio.toFixed(2)}) 기준, 교환가액(시가) <b>약 ${won(be)}</b> 이상부터 맞교환이 유리해집니다. (양도차익 약 ${won(Math.max(be-p.acq-p.exp,0))} 이상)`;
+  } else if (pts.every(q=>q[1]>=0)){
+    read.innerHTML = `현재 가정에서는 분석 구간(시가 ${won(start)}~${won(end)}) 전체에서 맞교환이 유리합니다.`;
+  } else {
+    read.innerHTML = `현재 가정에서는 분석 구간 전체에서 맞교환이 <b style="color:var(--tax-red)">불리</b>합니다. 재매도까지 거주기간(2년 이상 여부)과 미래 가격 가정을 조정해 보세요.`;
+  }
+  drawBE(pts, be, p.cur);
+}
+
+function drawBE(pts, be, cur){
+  const W=640,H=250,mL=56,mR=16,mT=22,mB=32;
+  const xs=pts.map(q=>q[0]), ys=pts.map(q=>q[1]);
+  const xMin=xs[0], xMax=xs[xs.length-1];
+  let yMin=Math.min.apply(null, ys.concat([0])), yMax=Math.max.apply(null, ys.concat([0]));
+  const pad=((yMax-yMin)||2)*0.14; yMin-=pad; yMax+=pad;
+  const X=v=>mL+(v-xMin)/(xMax-xMin)*(W-mL-mR);
+  const Y=v=>mT+(yMax-v)/(yMax-yMin)*(H-mT-mB);
+  let path='';
+  pts.forEach((q,i)=>{path+=(i?'L':'M')+X(q[0]).toFixed(1)+' '+Y(q[1]).toFixed(1)+' ';});
+  let xt='';
+  for(let i=0;i<=4;i++){
+    const v=xMin+(xMax-xMin)*i/4;
+    xt+=`<text x="${X(v).toFixed(1)}" y="${H-8}" text-anchor="middle" class="tk">${Math.round(v)}억</text>`;
+  }
+  let yt='';
+  [yMin+pad, 0, yMax-pad].forEach(v=>{
+    yt+=`<text x="${mL-8}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" class="tk">${v>0?'+':''}${Math.round(v*10)/10}억</text>`;
+  });
+  const zero=Y(0).toFixed(1);
+  let mark='';
+  if(be!==null){
+    mark=`<line x1="${X(be).toFixed(1)}" y1="${mT}" x2="${X(be).toFixed(1)}" y2="${H-mB}" class="beline"/>`+
+         `<circle cx="${X(be).toFixed(1)}" cy="${zero}" r="4.5" class="bedot"/>`+
+         `<text x="${X(be).toFixed(1)}" y="${mT-8}" text-anchor="middle" class="belab">손익분기 약 ${Math.round(be)}억</text>`;
+  }
+  let curMark='';
+  if(cur>=xMin && cur<=xMax){
+    let nr=pts[0]; for(const q of pts){ if(Math.abs(q[0]-cur)<Math.abs(nr[0]-cur)) nr=q; }
+    curMark=`<circle cx="${X(cur).toFixed(1)}" cy="${Y(nr[1]).toFixed(1)}" r="5" class="curdot"/>`+
+            `<text x="${X(cur).toFixed(1)}" y="${(Y(nr[1])-10).toFixed(1)}" text-anchor="middle" class="curlab">현재 입력</text>`;
+  }
+  $('beChart').innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="시가별 맞교환 절감액 곡선">`+
+    `<line x1="${mL}" y1="${zero}" x2="${W-mR}" y2="${zero}" class="zeroline"/>`+
+    `<text x="${W-mR}" y="${mT+2}" text-anchor="end" class="zone">↑ 맞교환 유리 (절감)</text>`+
+    `<text x="${W-mR}" y="${H-mB-6}" text-anchor="end" class="zone">↓ 맞교환 불리 (추가부담)</text>`+
+    `<path d="${path}" class="diffline"/>`+mark+curMark+xt+yt+`</svg>`;
+}
+
+// ── 전체 재계산 ──
+function calc(){
+  const p = readInputs();
+  renderYears(p);
+  renderSwap(p);
+}
+document.querySelectorAll('input,select').forEach(el=>{
+  el.addEventListener('input', calc);
+  el.addEventListener('change', calc);
+});
+calc();
+</script>
+</body>
+</html>
