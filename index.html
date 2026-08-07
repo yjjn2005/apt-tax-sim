@@ -215,6 +215,14 @@ footer{margin-top:24px;font-size:11px;color:var(--ink-soft);line-height:1.6}
         <div class="hint">미래 매도시점 가격에 반영</div>
       </div>
       <div class="field">
+        <label>명의</label>
+        <select id="owner">
+          <option value="joint" selected>부부 공동명의 (50:50)</option>
+          <option value="single">단독명의</option>
+        </select>
+        <div class="hint">공동명의: 인별 과세 · 공제한도 지분 배분</div>
+      </div>
+      <div class="field">
         <label>전용면적</label>
         <select id="area">
           <option value="over" selected>85㎡ 초과 (취득세 3.5%)</option>
@@ -363,7 +371,8 @@ footer{margin-top:24px;font-size:11px;color:var(--ink-soft);line-height:1.6}
       <li><b>2026·2027년 매도(현행)</b>: 12억 초과분 안분과세, 장특공제 = 보유 연 4% + 거주 연 4% (각 10년 한도, 최대 80%, 한도 없음).</li>
       <li><b>2028년 매도(경과규정)</b>: 거주 연 6% + 보유 연 2% (최대 80%), <b>공제액 한도 20억원</b>.</li>
       <li><b>2029년 이후 매도</b>: 보유공제 폐지, 거주 연 8% (최대 80%), <b>공제액 한도 10억원</b>.</li>
-      <li>기본공제 250만원, 기본세율 6~45% 누진, 지방소득세 10% 가산. 12억 비과세는 전 시점 유지 가정.</li>
+      <li>기본공제 250만원(인별), 기본세율 6~45% 누진(인별), 지방소득세 10% 가산. 12억 비과세는 전 시점 유지 가정.</li>
+      <li><b>부부 공동명의(50:50)</b>: 인별 과세로 차익·기본공제·누진세율을 각자 적용해 합산. 공제액 한도는 개인별·물건별로 지분 배분 — 2028년 각 10억, 2029년 각 5억 (개편안 기준).</li>
       <li>"계속 거주" 체크 시 매도시점까지 보유·거주기간이 연 단위로 늘어난 것으로 계산.</li>
       <li><b>교환 = 양도</b>: 교환 시점에 현행 규정으로 양도세 납부, 취득가액은 교환가액(시가)으로 리셋, 새 주택 보유·거주기간은 0부터 시작.</li>
       <li><b>취득세</b>: 1주택·9억 초과 3% + 지방교육세 0.3% + (85㎡ 초과 시 농특세 0.2%). 동시이행으로 중과 배제 가정. 기타비용(법무·채권·인지) 3,000만원 일괄.</li>
@@ -397,13 +406,17 @@ function progTax(base){
   for (const [lim, r, ded] of br){ if (base <= lim) return base*r - ded; }
 }
 
-// ── 양도세 (지방세 포함) — regime: 'now' | 'y28' | 'y29' ──
-function capGainTax(acq, sale, exp, holdY, resY, regime, exemptOK){
-  const gain = sale - acq - exp;
-  if (gain <= 0) return {tax:0, gain:Math.max(gain,0), taxable:0, ded:0, rate:0, base:0, capped:false};
-  let taxable = gain;
-  if (exemptOK && sale > 12) taxable = gain * (sale - 12) / sale;
-  else if (exemptOK && sale <= 12) taxable = 0;
+// ── 양도세 (지방세 포함) — regime: 'now' | 'y28' | 'y29', share: 1(단독) | 0.5(부부 공동) ──
+// 인별 과세: 지분별 차익·기본공제·누진세율 적용, 공제한도는 물건별 한도 × 지분 (개편안: 공동명의 시 한도 지분 배분)
+function capGainTax(acq, sale, exp, holdY, resY, regime, exemptOK, share){
+  share = share || 1;
+  const persons = Math.round(1/share);
+  const gainT = sale - acq - exp;
+  if (gainT <= 0) return {tax:0, gain:Math.max(gainT,0), taxable:0, ded:0, rate:0, base:0, capped:false, perTax:0, perCap:Infinity, persons};
+  const gain_i = gainT * share;
+  let taxable_i = gain_i;
+  if (exemptOK && sale > 12) taxable_i = gain_i * (sale - 12) / sale;
+  else if (exemptOK && sale <= 12) taxable_i = 0;
   let rate = 0, cap = Infinity;
   if (regime === 'now'){
     if (resY >= 2) rate = (Math.min(holdY,10)*4 + Math.min(resY,10)*4)/100;
@@ -416,10 +429,15 @@ function capGainTax(acq, sale, exp, holdY, resY, regime, exemptOK){
     rate = Math.min(resY,10)*8/100;
     cap = 10;
   }
-  const dedRaw = taxable*rate;
-  const ded = Math.min(dedRaw, cap);
-  const base = Math.max(0, taxable - ded - 0.025);
-  return {tax: progTax(base)*1.1, gain, taxable, ded, rate, base, capped: dedRaw > cap};
+  const cap_i = cap === Infinity ? Infinity : cap * share;
+  const dedRaw_i = taxable_i * rate;
+  const ded_i = Math.min(dedRaw_i, cap_i);
+  const base_i = Math.max(0, taxable_i - ded_i - 0.025);
+  const tax_i = progTax(base_i) * 1.1;
+  return {
+    tax: tax_i * persons, gain: gainT, taxable: taxable_i * persons, ded: ded_i * persons,
+    rate, base: base_i, capped: dedRaw_i > cap_i, perTax: tax_i, perCap: cap_i, persons
+  };
 }
 
 // ── 탭 전환 ──
@@ -446,7 +464,8 @@ function readInputs(){
     hold:+$('hold').value||0, res:+$('res').value||0,
     grow:(+$('grow').value||0)/100, stay:$('stay').checked,
     feeR:(+$('fee').value||0)/100,
-    acqRate: $('area').value==='over' ? 0.035 : 0.033
+    acqRate: $('area').value==='over' ? 0.035 : 0.033,
+    share: $('owner').value==='joint' ? 0.5 : 1
   };
 }
 const ETC = 0.03;
@@ -457,7 +476,7 @@ function yearResults(p){
     const price = p.cur * Math.pow(1+p.grow, Y.extra);
     const h = p.hold + Y.extra;
     const r = p.res + (p.stay ? Y.extra : 0);
-    const t = capGainTax(p.acq, price, p.exp, h, r, Y.regime, r>=2);
+    const t = capGainTax(p.acq, price, p.exp, h, r, Y.regime, r>=2, p.share);
     return {...Y, price, h, r, t};
   });
 }
@@ -482,12 +501,16 @@ function renderYears(p){
   const R = rs[selYear], t = R.t;
   const feeAmt = R.price * p.feeR * 1.1;
   const net = R.price - t.tax - feeAmt;
+  const ownLabel = t.persons>1
+    ? row(`부부 공동명의 · 인별 세액 ${won(t.perTax)} × 2${t.perCap!==Infinity?` <span class="red">(인별 한도 ${won(t.perCap)})</span>`:''}`, '', 'sub')
+    : '';
   $('yrDetail').innerHTML =
     row(`매도가액 (상승률 반영)`, R.price) +
     row(`양도차익`, t.gain) +
     row(`과세대상 차익 (12억 비과세 안분)`, t.taxable, 'sub') +
     row(`장특공제 ${Math.round(t.rate*100)}%${t.capped?' → <span class="red">한도 적용</span>':''}`, t.ded, 'sub') +
-    row(`과세표준`, t.base, 'sub') +
+    ownLabel +
+    row(`과세표준 (인별)`, t.base, 'sub') +
     row(`양도세 (지방세 포함)`, t.tax, 'red') +
     row(`중개보수 (VAT 포함)`, feeAmt) +
     row(`세후 실수취액 <span class="green">(보유·거주 ${R.h}년/${R.r}년 기준)</span>`, net, 'sum');
@@ -503,14 +526,14 @@ function renderSwap(p){
   const fut = +$('fut').value||0, res2 = +$('res2').value||0;
   const fee = v => v * p.feeR * 1.1;
 
-  const bNow = capGainTax(p.acq, p.cur, p.exp, p.hold, p.res, 'now', p.res>=2);
+  const bNow = capGainTax(p.acq, p.cur, p.exp, p.hold, p.res, 'now', p.res>=2, p.share);
   const bAcqTax = p.cur * p.acqRate;
   const bFeeNow = fee(p.cur);
-  const bFut = capGainTax(p.cur, fut, bAcqTax+ETC, res2, res2, 'y29', res2>=2);
+  const bFut = capGainTax(p.cur, fut, bAcqTax+ETC, res2, res2, 'y29', res2>=2, p.share);
   const bFeeFut = fee(fut);
   const totB = bNow.tax + bAcqTax + bFeeNow + ETC + bFut.tax + bFeeFut;
 
-  const cTax = capGainTax(p.acq, fut, p.exp, p.hold+res2, p.res+res2, 'y29', (p.res+res2)>=2);
+  const cTax = capGainTax(p.acq, fut, p.exp, p.hold+res2, p.res+res2, 'y29', (p.res+res2)>=2, p.share);
   const cFee = fee(fut);
   const totC = cTax.tax + cFee;
 
@@ -557,11 +580,11 @@ function renderSwap(p){
 // ── 손익분기 ──
 function totalsFor(p, s, futS, res2){
   const fee = v => v * p.feeR * 1.1;
-  const bNow = capGainTax(p.acq, s, p.exp, p.hold, p.res, 'now', p.res>=2);
+  const bNow = capGainTax(p.acq, s, p.exp, p.hold, p.res, 'now', p.res>=2, p.share);
   const bAcqTax = s * p.acqRate;
-  const bFut = capGainTax(s, futS, bAcqTax+ETC, res2, res2, 'y29', res2>=2);
+  const bFut = capGainTax(s, futS, bAcqTax+ETC, res2, res2, 'y29', res2>=2, p.share);
   const totB = bNow.tax + bAcqTax + fee(s) + ETC + bFut.tax + fee(futS);
-  const cTax = capGainTax(p.acq, futS, p.exp, p.hold+res2, p.res+res2, 'y29', (p.res+res2)>=2);
+  const cTax = capGainTax(p.acq, futS, p.exp, p.hold+res2, p.res+res2, 'y29', (p.res+res2)>=2, p.share);
   return {diff: (cTax.tax + fee(futS)) - totB};
 }
 
